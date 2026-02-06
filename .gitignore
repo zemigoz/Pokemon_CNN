@@ -27,3 +27,4 @@ notes.md
 
 #dont expose api key
 wandb_api_key.txt
+pokemon_tcg_api_key.txt

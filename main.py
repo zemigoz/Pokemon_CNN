@@ -24,26 +24,10 @@ from torchvision import datasets
 from torchvision.transforms import transforms
 from torchvision.transforms import ToTensor
 
-from src.tutorial_cnn import ConvolutionalNeuralNetwork
+from src.cnn import ConvolutionalNeuralNetwork
 from src.run_loops import *
-from src.analysis import *
+from config import *
 
-
-# --------------------------------------------------------------------------- #
-# CONFIGURATION
-# --------------------------------------------------------------------------- #
-BASE_DIR = Path(__file__).resolve().parent
-
-WANDB_API_KEY_PATH = BASE_DIR / Path("wandb_api_key.txt")
-WANDB_PROJECT_NAME = "tutorial_cnn"
-
-RNG_SEED = 314
-
-FOLDS = 5
-
-EPOCHS = 10
-BATCH_SIZE = 64
-ALPHA = 1e-3
 # --------------------------------------------------------------------------- #
 # MAIN WALK
 # --------------------------------------------------------------------------- #
