@@ -92,9 +92,9 @@ def main():
     #     print(f"Layer: {name} | Size: {param.size()} | Values : {param[:2]} \n")
 
     print("Processing Training data to DataLoaders")
-    train_dataloader = DataLoader(training_data, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
+    train_dataloader = DataLoader(training_data, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
     print("Processing Validation data to DataLoaders")
-    validate_dataloader = DataLoader(validate_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
+    validate_dataloader = DataLoader(validate_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, pin_memory=True)
     train_dataset = train_dataloader.dataset
 
 

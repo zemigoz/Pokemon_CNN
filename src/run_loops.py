@@ -31,7 +31,7 @@ def train_loop(
     # set model to training mode
     model.train()
     for X, y in dataloader:
-        X, y = X.to(device), y.to(device)
+        X, y = X.to(device, non_blocking=True), y.to(device, non_blocking=True)
 
         if scaler:
             with torch.amp.autocast(device_type=device.type):
@@ -83,7 +83,7 @@ def test_loop(
 
     with torch.no_grad():
         for X, y in dataloader:
-            X, y = X.to(device), y.to(device)
+            X, y = X.to(device, non_blocking=True), y.to(device, non_blocking=True)
 
             if scaler:
                 with torch.amp.autocast(device_type=device.type):
