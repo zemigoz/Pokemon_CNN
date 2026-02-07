@@ -51,8 +51,8 @@ def train_loop(
             loss.backward()
             optimizer.step()
 
-        total_loss += loss.item()
         num_samples += y.size(0)
+        total_loss += loss.item() * num_samples
 
         all_preds.extend(pred.argmax(1).cpu().numpy())
         all_labels.extend(y.cpu().numpy())
@@ -93,8 +93,8 @@ def test_loop(
                 pred = model(X)
                 loss = loss_fn(pred, y)
 
-            total_loss += loss.item()
             num_samples += y.size(0)
+            total_loss += loss.item() * num_samples
     
             all_preds.extend(pred.argmax(1).cpu().numpy())
             all_labels.extend(y.cpu().numpy())
@@ -103,6 +103,8 @@ def test_loop(
     
     y_true = np.array(all_labels)
     y_pred = np.array(all_preds)
+    
+    unique_labels = np.unique(y_true)
 
     # this is to simply have the type checker shut up about str | dict
     report = cast(
@@ -110,8 +112,10 @@ def test_loop(
         classification_report(
             y_true, 
             y_pred, 
-            target_names=labels_map.values(), 
-            output_dict=True
+            labels=unique_labels,
+            target_names=[labels_map[i] for i in unique_labels],
+            output_dict=True,
+            zero_division=0
         )
     ) 
 

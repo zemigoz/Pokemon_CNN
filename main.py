@@ -114,7 +114,7 @@ def main():
 
         # initiate all model related things
         model = ConvolutionalNeuralNetwork().to(device)
-        loss_fn = nn.CrossEntropyLoss()
+        loss_fn = nn.CrossEntropyLoss(reduction="mean")
         optimizer = torch.optim.SGD(model.parameters(), lr=ALPHA)
         # scheduler = # may wish to add. changes learning rate according to whatever algo/formula u choose like cosine, exp, or small loss steps
         
@@ -204,7 +204,7 @@ def main():
 
     ##### VALIDATATION
     model = ConvolutionalNeuralNetwork().to(device)
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = nn.CrossEntropyLoss(reduction="mean")
     optimizer = torch.optim.Adam(model.parameters(), lr=ALPHA)
 
     # epoch training runs
