@@ -42,53 +42,48 @@ def main():
         device_string = "cpu"
     device = torch.device(device_string)
 
+    if USE_F16_SCALER:
+        scaler = torch.amp.GradScaler(device=device)
+    else:
+        scaler = None
 
     os.environ["WANDB_API_KEY"] = WANDB_API_KEY_PATH.read_text().strip()
     wandb_group_name = Path(f"MNIST-{pd.Timestamp.now().strftime('%Y-%m-%d_%H-%M')}")
     
 
     train_transform = transforms.Compose([
+        # transforms.Lambda(lambda img: img.convert("RGB")),
+        transforms.Resize((256,256)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(10),
         transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
+        transforms.Normalize((0.5,), (0.5,)) # z-score
     ])
 
     test_transform = transforms.Compose([
+        # transforms.Lambda(lambda img: img.convert("RGB")),
+        transforms.Resize((256,256)),
         transforms.ToTensor(),
         transforms.Normalize((0.5,), (0.5,))
     ])
 
-
-    training_data = datasets.FashionMNIST(
-        root= BASE_DIR / Path("data"),
-        train=True,
-        download=True,
+    print("Loading Training Data")
+    training_data = datasets.ImageFolder(
+        root=TRAIN_DIR,
         transform=train_transform
     )
 
-    test_data = datasets.FashionMNIST(
-        root= BASE_DIR / Path("data"),
-        train=False,
-        download=True,
+    print("Loading Validation Data")
+    validate_data = datasets.ImageFolder(
+        root=VALIDATION_DIR,
         transform=test_transform
     )
 
-    # labels_map = {
-    #     0: "T-Shirt",
-    #     1: "Trouser",
-    #     2: "Pullover",
-    #     3: "Dress",
-    #     4: "Coat",
-    #     5: "Sandal",
-    #     6: "Shirt",
-    #     7: "Sneaker",
-    #     8: "Bag",
-    #     9: "Ankle Boot",
-    # }
-
     labels_map = training_data.class_to_idx
-    labels_map = {val: key for key, val in labels_map.items()}
+    labels_map = {idx: cls for cls, idx in labels_map.items()} 
+
+    # labels_names = [labels_map[i] for i in training_data.targets]
+    labels = training_data.targets
 
     # class_distribution(training_data=training_data)
 
@@ -96,13 +91,17 @@ def main():
     # for name, param in model.named_parameters():
     #     print(f"Layer: {name} | Size: {param.size()} | Values : {param[:2]} \n")
 
-    train_dataloader = DataLoader(training_data, batch_size=BATCH_SIZE, shuffle=True)
-    validate_dataloader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False)
+    print("Processing Training data to DataLoaders")
+    train_dataloader = DataLoader(training_data, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
+    print("Processing Validation data to DataLoaders")
+    validate_dataloader = DataLoader(validate_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
     train_dataset = train_dataloader.dataset
 
-    labels = [train_dataset[i][1] for i in range(len(train_dataset))]
+
+    # labels = [train_dataset[i][1] for i in range(len(train_dataset))]
 
     ####### KFOLD STRATIFY
+    print("Running KFolds now")
     skf = StratifiedKFold(
         n_splits=FOLDS, 
         shuffle=True, 
@@ -116,7 +115,7 @@ def main():
         # initiate all model related things
         model = ConvolutionalNeuralNetwork().to(device)
         loss_fn = nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=ALPHA)
+        optimizer = torch.optim.SGD(model.parameters(), lr=ALPHA)
         # scheduler = # may wish to add. changes learning rate according to whatever algo/formula u choose like cosine, exp, or small loss steps
         
         # wandb initialize
@@ -141,14 +140,15 @@ def main():
         test_kfold_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False)
 
         # epoch training runs
-        epoch_train_losses = []
-        epoch_train_accuracies = []
+        # epoch_train_losses = []
+        # epoch_train_accuracies = []
         for epoch in range(EPOCHS):
             train_loss, train_acc = train_loop(
                 dataloader=train_kfold_loader, 
                 model=model, 
                 loss_fn=loss_fn, 
-                optimizer=optimizer
+                optimizer=optimizer,
+                scaler=scaler
             )
             wandb.log({
                 # "fold": fold,
@@ -157,15 +157,16 @@ def main():
                 "train_acc": train_acc
             })
 
-            epoch_train_losses.append(train_loss)
-            epoch_train_accuracies.append(train_acc)
+            # epoch_train_losses.append(train_loss)
+            # epoch_train_accuracies.append(train_acc)
 
 
         test_loss, metrics_report = test_loop(
             dataloader=test_kfold_loader, 
             model=model, 
             loss_fn=loss_fn, 
-            labels_map=labels_map
+            labels_map=labels_map,
+            scaler=scaler
         )
 
         macro_avg = metrics_report["macro avg"]
@@ -186,20 +187,19 @@ def main():
             "kfold/weighted_avg/f1": weighted_avg["f1-score"],
         })
 
-        for class_name, class_metrics in metrics_report.items():
-            if class_name not in ["macro avg", "weighted avg", "accuracy"]:
-                wandb.log({
-                    f"kfold/{class_name}_precision": class_metrics["precision"],
-                    f"kfold/{class_name}_recall": class_metrics["recall"],
-                    f"kfold/{class_name}_f1": class_metrics["f1-score"]
-                })
+        # for class_name, class_metrics in metrics_report.items():
+        #     if class_name not in ["macro avg", "weighted avg", "accuracy"]:
+        #         wandb.log({
+        #             f"kfold/{class_name}_precision": class_metrics["precision"],
+        #             f"kfold/{class_name}_recall": class_metrics["recall"],
+        #             f"kfold/{class_name}_f1": class_metrics["f1-score"]
+        #         })
 
         wandb.finish()
         del model
         del optimizer
         gc.collect()
         torch.cuda.empty_cache()
-
 
 
     ##### VALIDATATION
@@ -225,7 +225,8 @@ def main():
         dataloader=validate_dataloader, 
         model=model, 
         loss_fn=loss_fn, 
-        labels_map=labels_map
+        labels_map=labels_map,
+        scaler=scaler
     )
 
     macro_avg = metrics_report["macro avg"]
@@ -258,13 +259,13 @@ def main():
         "val/weighted_avg/f1": weighted_avg["f1-score"],
     })
 
-    for class_name, class_metrics in metrics_report.items():
-        if class_name not in ["macro avg", "weighted avg", "accuracy"]:
-            wandb.log({
-                f"val/{class_name}_precision": class_metrics["precision"],
-                f"val/{class_name}_recall": class_metrics["recall"],
-                f"val/{class_name}_f1": class_metrics["f1-score"]
-            })
+    # for class_name, class_metrics in metrics_report.items():
+    #     if class_name not in ["macro avg", "weighted avg", "accuracy"]:
+    #         wandb.log({
+    #             f"val/{class_name}_precision": class_metrics["precision"],
+    #             f"val/{class_name}_recall": class_metrics["recall"],
+    #             f"val/{class_name}_f1": class_metrics["f1-score"]
+    #         })
 
     wandb.finish()
 

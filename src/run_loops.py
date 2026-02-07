@@ -12,13 +12,13 @@ from torchvision.transforms import ToTensor
 from torch import nn, Tensor
 from torch.optim import Optimizer
 
-from .tutorial_nn import NeuralNetwork
 
 def train_loop(
     dataloader: DataLoader,
     model: nn.Module,
     loss_fn: Callable[[Tensor, Tensor], Tensor],
     optimizer: Optimizer,
+    scaler=None
 ):    
     device = next(model.parameters()).device
 
@@ -33,13 +33,23 @@ def train_loop(
     for X, y in dataloader:
         X, y = X.to(device), y.to(device)
 
-        pred = model(X)
-        loss = loss_fn(pred, y)
+        if scaler:
+            with torch.amp.autocast(device_type=device.type):
+                pred = model(X)
+                loss = loss_fn(pred, y)
 
-        # backprop (never will i code it again. ty DAG & PyTorch )
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            scaler.scale(loss).backward()
+
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            pred = model(X)
+            loss = loss_fn(pred, y)
+
+            # backprop (never will i code it again. ty DAG & PyTorch )
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
         total_loss += loss.item()
         num_samples += y.size(0)
@@ -57,7 +67,8 @@ def test_loop(
     dataloader: DataLoader, 
     model: nn.Module, 
     loss_fn: Callable[[Tensor, Tensor], Tensor],
-    labels_map
+    labels_map,
+    scaler=None
 ):
     # set model to evaluation mode (look into batch_normalization)
     model.eval()
@@ -73,9 +84,16 @@ def test_loop(
     with torch.no_grad():
         for X, y in dataloader:
             X, y = X.to(device), y.to(device)
-            pred = model(X)
 
-            total_loss += loss_fn(pred, y).item()
+            if scaler:
+                with torch.amp.autocast(device_type=device.type):
+                    pred = model(X)
+                    loss = loss_fn(pred, y)
+            else:
+                pred = model(X)
+                loss = loss_fn(pred, y)
+
+            total_loss += loss.item()
             num_samples += y.size(0)
     
             all_preds.extend(pred.argmax(1).cpu().numpy())

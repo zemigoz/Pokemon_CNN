@@ -31,37 +31,47 @@ class ConvolutionalNeuralNetwork(nn.Module):
         # conv -> dim_i = math.floor([(dim_i_og + 2 * padding - dilation * (kernel_i - 1) - 1) / stride] + 1)
         # pool -> dim_i = math.floor([(dim_i_og + 2 * padding - kernel_i) / stride] + 1)
 
-        self.conv_stack = nn.Sequential( # goes in as (batch_size, 1, 28, 28)
-            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, padding=1, bias=False), # (batch_size, 32, 28, 28)
-            nn.BatchNorm2d(32), #reduces overfitting by normalizing out_channel outputs of convolutions only
-            nn.ReLU(), #learn it now. rinse and repeat
-            nn.MaxPool2d(2), #downsample using a kernel_size x kernel_size kernel with other args. (can use a tuple for more control)
-            # maxpool reduced it to (batch_size, 32, 14, 14)
+        self.conv_stack = nn.Sequential( # (batch_size, 3, 1024, 1024)
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=5, padding=2, bias=False), # (batch_size, 32, 256, 256)
+            nn.BatchNorm2d(32), 
+            nn.ReLU(), 
 
-            nn.Conv2d(32, 64, kernel_size=3, padding=1, bias=False), # [(14 + 2 * 2 - (5 - 1) - 1) / 1] + 1 = [(14 + 4 - (4) - 1) / 2] + 1 = 14
+            nn.Conv2d(32, 64, kernel_size=3, padding=1, bias=False), # (batch_size, 64, 256, 256)
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(2), # (batch_size, 64, 7,7)
+            nn.Dropout2d(0.2),
+            nn.MaxPool2d(2),
 
-            nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=False), # [(14 + 2 * 2 - (5 - 1) - 1) / 1] + 1 = [(14 + 4 - (4) - 1) / 2] + 1 = 14
+            nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=False), # (batch_size, 64, 128, 128)
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            # nn.MaxPool2d(2), # (batch_size, 64, 7,7)
+            nn.MaxPool2d(2), # (batch_size, 64, 300, 412)
+            nn.Dropout2d(0.2),
+
+            nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=False), # (batch_size, 64, 64, 64)
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            # nn.MaxPool2d(2), # (batch_size, 64, 256, 256)
             # nn.AdaptiveMaxPool2d((7,7)) #specify output. useful for varying image sizes and just not typing up conv2d()
         )
 
         self.fc_stack = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(64 * 7 * 7, 256, bias=False), #since its flattened, it must use the product of (_, channels, **dim)
-            nn.BatchNorm1d(256),
+            nn.Linear(64 * 64 * 64, 512, bias=False), #since its flattened, it must use the product of (_, channels, **dim)
+            nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Dropout(0.5),  
 
-            nn.Linear(256, 128, bias=False),
-            nn.BatchNorm1d(128),
+            nn.Linear(512, 512, bias=False),
+            nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Dropout(0.4),
-            nn.Linear(128, 10) #finish with num_labels of choice
+            nn.Dropout(0.5),
+
+            nn.Linear(512, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            # nn.Dropout(0.4),
+            nn.Linear(256, 1023) #finish with num_labels of choice
         )
 
         # self.fc_stack = nn.Sequential(

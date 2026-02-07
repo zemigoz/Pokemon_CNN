@@ -21,6 +21,7 @@ __pycache__/
 # folders
 data/
 wandb/
+pokemon-tcg-data/
 
 #My Notes
 notes.md
@@ -28,3 +29,6 @@ notes.md
 #dont expose api key
 wandb_api_key.txt
 pokemon_tcg_api_key.txt
+
+# just to check images
+check.py
